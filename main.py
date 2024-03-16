@@ -1,24 +1,16 @@
-# This is a sample Python script.
 
-# Press Shift+F10 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
 
 import os
-os.environ['TF_USE_LEGACY_KERAS'] = '1'
+import glob
 import numpy as np
 import tensorflow as tf
-#import tf_agents
+import PIL.Image
+import datetime
+import reverb
 import base64
 import imageio
 import IPython
 import matplotlib.pyplot as plt
-import os
-import reverb
-import tempfile
-import PIL.Image
-
-import datetime
-
 
 from tf_agents.agents.ddpg import critic_network
 from tf_agents.agents.sac import sac_agent
@@ -26,86 +18,181 @@ from tf_agents.agents.sac import tanh_normal_projection_network
 from tf_agents.environments import suite_pybullet
 from tf_agents.metrics import py_metrics
 from tf_agents.networks import actor_distribution_network
-from tf_agents.policies import greedy_policy
-from tf_agents.policies import py_tf_eager_policy
-from tf_agents.policies import random_py_policy
-from tf_agents.replay_buffers import reverb_replay_buffer
-from tf_agents.replay_buffers import reverb_utils
-from tf_agents.train import actor
-from tf_agents.train import learner
-from tf_agents.train import triggers
-from tf_agents.train.utils import spec_utils
-from tf_agents.train.utils import strategy_utils
-from tf_agents.train.utils import train_utils
+from tf_agents.policies import greedy_policy, py_tf_eager_policy, random_py_policy
+from tf_agents.replay_buffers import reverb_replay_buffer, reverb_utils
+from tf_agents.train import actor, learner, triggers
+from tf_agents.train.utils import spec_utils, strategy_utils, train_utils
 
-tempdir = '/home/walt/src/temp/' #tempfile.gettempdir()
+os.environ['TF_USE_LEGACY_KERAS'] = '1'
+tempdir = '/home/walt/src/temp/'  # Modify as needed
+# Hyperparameter Configuration Start
+def read_hyperparameters(filename='hyperparams_01.txt'):
+    global num_iterations, initial_collect_steps, collect_steps_per_iteration, replay_buffer_capacity
+    global batch_size, critic_learning_rate, actor_learning_rate, alpha_learning_rate
+    global target_update_tau, target_update_period, gamma, reward_scale_factor
+    global actor_fc_layer_params, critic_joint_fc_layer_params, log_interval
+    global num_eval_episodes, eval_interval, policy_save_interval
+
+    defaults = {
+        'num_iterations': 50000,
+        'initial_collect_steps': 5000,
+        'collect_steps_per_iteration': 4,
+        'replay_buffer_capacity': 50000,
+        'batch_size': 256,
+        'critic_learning_rate': 3e-4,
+        'actor_learning_rate': 3e-4,
+        'alpha_learning_rate': 3e-4,
+        'target_update_tau': 0.005,
+        'target_update_period': 1,
+        'gamma': 0.99,
+        'reward_scale_factor': 1.0,
+        'actor_fc_layer_params': (256, 256),
+        'critic_joint_fc_layer_params': (256, 256),
+        'log_interval': 5000,
+        'num_eval_episodes': 200,
+        'eval_interval': 10000,
+        'policy_save_interval': 5000,
+    }
+
+    if not os.path.exists(filename):
+        print('No such file or directory', filename)
+        print("Proceeding with default hyperparameters...")
+    else:
+        with open(filename, 'r') as file:
+            print('Reading hyperparameters from file', filename)
+            for line in file:
+                name, value = line.split('=')
+                if name.strip() in defaults:
+                    defaults[name.strip()] = eval(value.strip())
+                    print('{} set to \t\t{}'.format(name.strip(), defaults[name.strip()]))
+
+    # Update the global variables
+    num_iterations = defaults['num_iterations']
+    initial_collect_steps = defaults['initial_collect_steps']
+    collect_steps_per_iteration = defaults['collect_steps_per_iteration']
+    replay_buffer_capacity = defaults['replay_buffer_capacity']
+    batch_size = defaults['batch_size']
+    critic_learning_rate = defaults['critic_learning_rate']
+    actor_learning_rate = defaults['actor_learning_rate']
+    alpha_learning_rate = defaults['alpha_learning_rate']
+    target_update_tau = defaults['target_update_tau']
+    target_update_period = defaults['target_update_period']
+    gamma = defaults['gamma']
+    reward_scale_factor = defaults['reward_scale_factor']
+    actor_fc_layer_params = defaults['actor_fc_layer_params']
+    critic_joint_fc_layer_params = defaults['critic_joint_fc_layer_params']
+    log_interval = defaults['log_interval']
+    num_eval_episodes = defaults['num_eval_episodes']
+    eval_interval = defaults['eval_interval']
+    policy_save_interval = defaults['policy_save_interval']
+
+# Call this function at the beginning of your script to update the hyperparameters
+read_hyperparameters()# Hyperparameter Configuration Start
+def read_hyperparameters(filename='hyperparams_01.txt'):
+    global num_iterations, initial_collect_steps, collect_steps_per_iteration, replay_buffer_capacity
+    global batch_size, critic_learning_rate, actor_learning_rate, alpha_learning_rate
+    global target_update_tau, target_update_period, gamma, reward_scale_factor
+    global actor_fc_layer_params, critic_joint_fc_layer_params, log_interval
+    global num_eval_episodes, eval_interval, policy_save_interval
+
+    defaults = {
+        'num_iterations': 50000,
+        'initial_collect_steps': 5000,
+        'collect_steps_per_iteration': 4,
+        'replay_buffer_capacity': 50000,
+        'batch_size': 256,
+        'critic_learning_rate': 3e-4,
+        'actor_learning_rate': 3e-4,
+        'alpha_learning_rate': 3e-4,
+        'target_update_tau': 0.005,
+        'target_update_period': 1,
+        'gamma': 0.99,
+        'reward_scale_factor': 1.0,
+        'actor_fc_layer_params': (256, 256),
+        'critic_joint_fc_layer_params': (256, 256),
+        'log_interval': 5000,
+        'num_eval_episodes': 200,
+        'eval_interval': 10000,
+        'policy_save_interval': 5000,
+    }
+
+    if not os.path.exists(filename):
+        print('No such file or directory', filename)
+        print("Proceeding with default hyperparameters...")
+    else:
+        with open(filename, 'r') as file:
+            print('Reading hyperparameters from file', filename)
+            for line in file:
+                name, value = line.split('=')
+                if name.strip() in defaults:
+                    defaults[name.strip()] = eval(value.strip())
+                    print('{} set to \t\t{}'.format(name.strip(), defaults[name.strip()]))
+
+    # Update the global variables
+    num_iterations = defaults['num_iterations']
+    initial_collect_steps = defaults['initial_collect_steps']
+    collect_steps_per_iteration = defaults['collect_steps_per_iteration']
+    replay_buffer_capacity = defaults['replay_buffer_capacity']
+    batch_size = defaults['batch_size']
+    critic_learning_rate = defaults['critic_learning_rate']
+    actor_learning_rate = defaults['actor_learning_rate']
+    alpha_learning_rate = defaults['alpha_learning_rate']
+    target_update_tau = defaults['target_update_tau']
+    target_update_period = defaults['target_update_period']
+    gamma = defaults['gamma']
+    reward_scale_factor = defaults['reward_scale_factor']
+    actor_fc_layer_params = defaults['actor_fc_layer_params']
+    critic_joint_fc_layer_params = defaults['critic_joint_fc_layer_params']
+    log_interval = defaults['log_interval']
+    num_eval_episodes = defaults['num_eval_episodes']
+    eval_interval = defaults['eval_interval']
+    policy_save_interval = defaults['policy_save_interval']
+
+# Call this function at the beginning of your script to update the hyperparameters
+read_hyperparameters()
+
+# Checkpoint Loading Start
+def list_checkpoints(checkpoint_dir):
+    checkpoints = glob.glob(os.path.join(checkpoint_dir, '*.ckpt*'))
+    if not checkpoints:
+        return None
+    print("Available checkpoints:")
+    for i, checkpoint in enumerate(checkpoints):
+        print(f"{i + 1}. {checkpoint}")
+    return checkpoints
+
+def load_checkpoint():
+    checkpoint_dir = os.path.join(tempdir, 'policies')
+    print("Looking for a checkpoint at {}".format(checkpoint_dir))
+    checkpoints = list_checkpoints(checkpoint_dir)
+    if checkpoints is None:
+        print("No checkpoints available, starting a new training session.")
+        return None
+    choice = input("Enter the number of the checkpoint to load or press Enter to start a new session: ")
+    if choice:
+        checkpoint_path = checkpoints[int(choice) - 1]
+        print(f"Loading checkpoint: {checkpoint_path}")
+        return checkpoint_path
+    return None
+
+checkpoint_path = load_checkpoint()
+# Checkpoint Loading End
 
 
-#=========================================================================
-# ========================== hypterparameters ==========================
 env_name = "MinitaurBulletEnv-v0"  # @param {type:"string"}
-# Use "num_iterations = 1e6" for better results (2 hrs)
-# 1e5 is just so this doesn't take too long (1 hr)
-num_iterations              = 50000  # @param {type:"integer"}
-initial_collect_steps       = 5000  # @param {type:"integer"}
-collect_steps_per_iteration = 4  # @param {type:"integer"}
-replay_buffer_capacity      = 50000  # ll
-# @param {type:"integer"}
-batch_size                  = 256  # @param {type:"integer"}
-critic_learning_rate        = 3e-4  # @param {type:"number"}
-actor_learning_rate         = 3e-4  # @param {type:"number"}
-alpha_learning_rate         = 3e-4  # @param {type:"number"}
-target_update_tau           = 0.005  # @param {type:"number"}
-target_update_period        = 1  # @param {type:"number"}
-gamma                       = 0.99  # @param {type:"number"}
-reward_scale_factor         = 1.0  # @param {type:"number"}
-actor_fc_layer_params           = (256, 256)
-critic_joint_fc_layer_params    = (256, 256)
-log_interval                = 5000  # @param {type:"integer"}
-num_eval_episodes           = 200  # @param {type:"integer"}
-eval_interval               = 10000  # @param {type:"integer"}
-policy_save_interval        = 5000  # @param {type:"integer"}
-#================================================================================
-# =========================== load environement =================================
 env = suite_pybullet.load(env_name)
 env.reset()
 PIL.Image.fromarray(env.render())
 now = datetime.datetime.now()
-#display time in H:M:S
 print("Starting at {}".format(now))
-
-
-if(False):
-    import pybullet as p
-    #urdf_file = "/home/walt/src/sac/venv/lib/python3.10/site-packages/pybullet_data/quadruped/minitaur.urdf"
-    urdf_file = "/home/walt/src/sac/venv/lib/python3.10/site-packages/pybullet_data/quadruped/minitaur_v1.urdf"
-    robot = p.loadURDF(urdf_file)
-    for joint_index in range(p.getNumJoints(robot)):
-        print(p.getJointInfo(robot, joint_index))
-    #foot_index = # The index of the foot link
-    #state = p.getLinkState(robot, foot_index)
-    #position = state[0]  # Position of the foot link in Cartesian coordinates (x, y, z)
-
-
-if(False):
-    print('Observation Spec:')
-    print(env.time_step_spec().observation)
-    print('Action Spec:')
-    print(env.action_spec())
-
 
 collect_env = suite_pybullet.load(env_name)
 eval_env = suite_pybullet.load(env_name)
-print(collect_env)
-print(eval_env)
 
-use_gpu = True #@param {type:"boolean"}
-
+use_gpu = True
 strategy = strategy_utils.get_strategy(tpu=False, use_gpu=use_gpu)
 
-
-observation_spec, action_spec, time_step_spec = (
-      spec_utils.get_tensor_specs(collect_env))
+observation_spec, action_spec, time_step_spec = spec_utils.get_tensor_specs(collect_env)
 
 with strategy.scope():
   critic_net = critic_network.CriticNetwork(
@@ -146,6 +233,11 @@ with strategy.scope():
         train_step_counter=train_step)
 
   tf_agent.initialize()
+
+    # Rest of the script remains as in your original script, with hyperparameter variables replaced as needed.
+
+    # When initializing agent_learner, check if checkpoint_path is not None, then load the checkpoint
+
 
 '''
 Replay Buffer
@@ -385,6 +477,4 @@ with imageio.get_writer(video_filename, fps=60) as video:
       video.append_data(eval_env.render())
 
 embed_mp4(video_filename)
-
-
 
