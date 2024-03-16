@@ -1,0 +1,5 @@
+
+1. fix the checkpoint loading issue. The console output is
+showing "No checkpoints available, starting a new training session."
+even though there are checkpoints available.
+2. console output reporting "No policy found to log." at the end of the training session.
