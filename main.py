@@ -1,7 +1,10 @@
+# minitour training script, using the SAC Reinforced Learning method.
+# This work is based on the tutorial provided by the tf-agents example for minitour
+# add adds functionality to help organize and log training exersises.
 
-
+import helper_functions as hf
 import os
-import glob
+import sys
 import numpy as np
 import tensorflow as tf
 import PIL.Image
@@ -15,7 +18,13 @@ import matplotlib.pyplot as plt
 from tf_agents.agents.ddpg import critic_network
 from tf_agents.agents.sac import sac_agent
 from tf_agents.agents.sac import tanh_normal_projection_network
+
+# Suppress PyBullet output
+sys.stdout = open(os.devnull, 'w')
 from tf_agents.environments import suite_pybullet
+# Reset stdout to its original state
+sys.stdout = sys.__stdout__
+
 from tf_agents.metrics import py_metrics
 from tf_agents.networks import actor_distribution_network
 from tf_agents.policies import greedy_policy, py_tf_eager_policy, random_py_policy
@@ -24,160 +33,14 @@ from tf_agents.train import actor, learner, triggers
 from tf_agents.train.utils import spec_utils, strategy_utils, train_utils
 
 os.environ['TF_USE_LEGACY_KERAS'] = '1'
-tempdir = '/home/walt/src/temp/'  # Modify as needed
+tempdir = '../temp/'  # Modify as needed
+
 # Hyperparameter Configuration Start
-def read_hyperparameters(filename='hyperparams_01.txt'):
-    global num_iterations, initial_collect_steps, collect_steps_per_iteration, replay_buffer_capacity
-    global batch_size, critic_learning_rate, actor_learning_rate, alpha_learning_rate
-    global target_update_tau, target_update_period, gamma, reward_scale_factor
-    global actor_fc_layer_params, critic_joint_fc_layer_params, log_interval
-    global num_eval_episodes, eval_interval, policy_save_interval
-
-    defaults = {
-        'num_iterations': 50000,
-        'initial_collect_steps': 5000,
-        'collect_steps_per_iteration': 4,
-        'replay_buffer_capacity': 50000,
-        'batch_size': 256,
-        'critic_learning_rate': 3e-4,
-        'actor_learning_rate': 3e-4,
-        'alpha_learning_rate': 3e-4,
-        'target_update_tau': 0.005,
-        'target_update_period': 1,
-        'gamma': 0.99,
-        'reward_scale_factor': 1.0,
-        'actor_fc_layer_params': (256, 256),
-        'critic_joint_fc_layer_params': (256, 256),
-        'log_interval': 5000,
-        'num_eval_episodes': 200,
-        'eval_interval': 10000,
-        'policy_save_interval': 5000,
-    }
-
-    if not os.path.exists(filename):
-        print('No such file or directory', filename)
-        print("Proceeding with default hyperparameters...")
-    else:
-        with open(filename, 'r') as file:
-            print('Reading hyperparameters from file', filename)
-            for line in file:
-                name, value = line.split('=')
-                if name.strip() in defaults:
-                    defaults[name.strip()] = eval(value.strip())
-                    print('{} set to \t\t{}'.format(name.strip(), defaults[name.strip()]))
-
-    # Update the global variables
-    num_iterations = defaults['num_iterations']
-    initial_collect_steps = defaults['initial_collect_steps']
-    collect_steps_per_iteration = defaults['collect_steps_per_iteration']
-    replay_buffer_capacity = defaults['replay_buffer_capacity']
-    batch_size = defaults['batch_size']
-    critic_learning_rate = defaults['critic_learning_rate']
-    actor_learning_rate = defaults['actor_learning_rate']
-    alpha_learning_rate = defaults['alpha_learning_rate']
-    target_update_tau = defaults['target_update_tau']
-    target_update_period = defaults['target_update_period']
-    gamma = defaults['gamma']
-    reward_scale_factor = defaults['reward_scale_factor']
-    actor_fc_layer_params = defaults['actor_fc_layer_params']
-    critic_joint_fc_layer_params = defaults['critic_joint_fc_layer_params']
-    log_interval = defaults['log_interval']
-    num_eval_episodes = defaults['num_eval_episodes']
-    eval_interval = defaults['eval_interval']
-    policy_save_interval = defaults['policy_save_interval']
+# Call this function to update the hyperparameters
+hyp = hf.read_hyperparameters()# Hyperparameter Configuration Start
 
 # Call this function at the beginning of your script to update the hyperparameters
-read_hyperparameters()# Hyperparameter Configuration Start
-def read_hyperparameters(filename='hyperparams_01.txt'):
-    global num_iterations, initial_collect_steps, collect_steps_per_iteration, replay_buffer_capacity
-    global batch_size, critic_learning_rate, actor_learning_rate, alpha_learning_rate
-    global target_update_tau, target_update_period, gamma, reward_scale_factor
-    global actor_fc_layer_params, critic_joint_fc_layer_params, log_interval
-    global num_eval_episodes, eval_interval, policy_save_interval
-
-    defaults = {
-        'num_iterations': 50000,
-        'initial_collect_steps': 5000,
-        'collect_steps_per_iteration': 4,
-        'replay_buffer_capacity': 50000,
-        'batch_size': 256,
-        'critic_learning_rate': 3e-4,
-        'actor_learning_rate': 3e-4,
-        'alpha_learning_rate': 3e-4,
-        'target_update_tau': 0.005,
-        'target_update_period': 1,
-        'gamma': 0.99,
-        'reward_scale_factor': 1.0,
-        'actor_fc_layer_params': (256, 256),
-        'critic_joint_fc_layer_params': (256, 256),
-        'log_interval': 5000,
-        'num_eval_episodes': 200,
-        'eval_interval': 10000,
-        'policy_save_interval': 5000,
-    }
-
-    if not os.path.exists(filename):
-        print('No such file or directory', filename)
-        print("Proceeding with default hyperparameters...")
-    else:
-        with open(filename, 'r') as file:
-            print('Reading hyperparameters from file', filename)
-            for line in file:
-                name, value = line.split('=')
-                if name.strip() in defaults:
-                    defaults[name.strip()] = eval(value.strip())
-                    print('{} set to \t\t{}'.format(name.strip(), defaults[name.strip()]))
-
-    # Update the global variables
-    num_iterations = defaults['num_iterations']
-    initial_collect_steps = defaults['initial_collect_steps']
-    collect_steps_per_iteration = defaults['collect_steps_per_iteration']
-    replay_buffer_capacity = defaults['replay_buffer_capacity']
-    batch_size = defaults['batch_size']
-    critic_learning_rate = defaults['critic_learning_rate']
-    actor_learning_rate = defaults['actor_learning_rate']
-    alpha_learning_rate = defaults['alpha_learning_rate']
-    target_update_tau = defaults['target_update_tau']
-    target_update_period = defaults['target_update_period']
-    gamma = defaults['gamma']
-    reward_scale_factor = defaults['reward_scale_factor']
-    actor_fc_layer_params = defaults['actor_fc_layer_params']
-    critic_joint_fc_layer_params = defaults['critic_joint_fc_layer_params']
-    log_interval = defaults['log_interval']
-    num_eval_episodes = defaults['num_eval_episodes']
-    eval_interval = defaults['eval_interval']
-    policy_save_interval = defaults['policy_save_interval']
-
-# Call this function at the beginning of your script to update the hyperparameters
-read_hyperparameters()
-
-# Checkpoint Loading Start
-def list_checkpoints(checkpoint_dir):
-    checkpoints = glob.glob(os.path.join(checkpoint_dir, '*.ckpt*'))
-    if not checkpoints:
-        return None
-    print("Available checkpoints:")
-    for i, checkpoint in enumerate(checkpoints):
-        print(f"{i + 1}. {checkpoint}")
-    return checkpoints
-
-def load_checkpoint():
-    checkpoint_dir = os.path.join(tempdir, 'policies')
-    print("Looking for a checkpoint at {}".format(checkpoint_dir))
-    checkpoints = list_checkpoints(checkpoint_dir)
-    if checkpoints is None:
-        print("No checkpoints available, starting a new training session.")
-        return None
-    choice = input("Enter the number of the checkpoint to load or press Enter to start a new session: ")
-    if choice:
-        checkpoint_path = checkpoints[int(choice) - 1]
-        print(f"Loading checkpoint: {checkpoint_path}")
-        return checkpoint_path
-    return None
-
-checkpoint_path = load_checkpoint()
-# Checkpoint Loading End
-
+#read_hyperparameters()
 
 env_name = "MinitaurBulletEnv-v0"  # @param {type:"string"}
 env = suite_pybullet.load(env_name)
@@ -188,6 +51,9 @@ print("Starting at {}".format(now))
 
 collect_env = suite_pybullet.load(env_name)
 eval_env = suite_pybullet.load(env_name)
+print('colleting_env = '.format(collect_env))
+print('eval_env = '.format(eval_env))
+
 
 use_gpu = True
 strategy = strategy_utils.get_strategy(tpu=False, use_gpu=use_gpu)
@@ -199,7 +65,7 @@ with strategy.scope():
         (observation_spec, action_spec),
         observation_fc_layer_params=None,
         action_fc_layer_params=None,
-        joint_fc_layer_params=critic_joint_fc_layer_params,
+        joint_fc_layer_params=hyp['critic_joint_fc_layer_params'],
         kernel_initializer='glorot_uniform',
         last_kernel_initializer='glorot_uniform')
 
@@ -207,7 +73,7 @@ with strategy.scope():
       actor_net = actor_distribution_network.ActorDistributionNetwork(
           observation_spec,
           action_spec,
-          fc_layer_params=actor_fc_layer_params,
+          fc_layer_params=hyp['actor_fc_layer_params'],
           continuous_projection_net=(
               tanh_normal_projection_network.TanhNormalProjectionNetwork))
 
@@ -220,16 +86,16 @@ with strategy.scope():
         actor_network=actor_net,
         critic_network=critic_net,
         actor_optimizer=tf.keras.optimizers.Adam(
-            learning_rate=actor_learning_rate),
+            learning_rate=hyp['actor_learning_rate']),
         critic_optimizer=tf.keras.optimizers.Adam(
-            learning_rate=critic_learning_rate),
+            learning_rate=hyp['critic_learning_rate']),
         alpha_optimizer=tf.keras.optimizers.Adam(
-            learning_rate=alpha_learning_rate),
-        target_update_tau=target_update_tau,
-        target_update_period=target_update_period,
+            learning_rate=hyp['alpha_learning_rate']),
+        target_update_tau=hyp['target_update_tau'],
+        target_update_period=hyp['target_update_period'],
         td_errors_loss_fn=tf.math.squared_difference,
-        gamma=gamma,
-        reward_scale_factor=reward_scale_factor,
+        gamma=hyp['gamma'],
+        reward_scale_factor=hyp['reward_scale_factor'],
         train_step_counter=train_step)
 
   tf_agent.initialize()
@@ -253,7 +119,7 @@ rate_limiter=reverb.rate_limiters.SampleToInsertRatio(samples_per_insert=3.0, mi
 table_name = 'uniform_table'
 table = reverb.Table(
     table_name,
-    max_size=replay_buffer_capacity,
+    max_size=hyp['replay_buffer_capacity'],
     sampler=reverb.selectors.Uniform(),
     remover=reverb.selectors.Fifo(),
     rate_limiter=reverb.rate_limiters.MinSize(1))
@@ -267,7 +133,7 @@ reverb_replay = reverb_replay_buffer.ReverbReplayBuffer(
     local_server=reverb_server)
 
 dataset = reverb_replay.as_dataset(
-      sample_batch_size=batch_size, num_steps=2).prefetch(50)
+      sample_batch_size=hyp['batch_size'], num_steps=2).prefetch(50)
 experience_dataset_fn = lambda: dataset
 
 '''
@@ -317,7 +183,7 @@ initial_collect_actor = actor.Actor(
   collect_env,
   random_policy,
   train_step,
-  steps_per_run=initial_collect_steps,
+  steps_per_run=hyp['initial_collect_steps'],
   observers=[rb_observer])
 initial_collect_actor.run()
 
@@ -335,34 +201,33 @@ eval_actor = actor.Actor(
   eval_env,
   eval_policy,
   train_step,
-  episodes_per_run=num_eval_episodes,
-  metrics=actor.eval_metrics(num_eval_episodes),
+  episodes_per_run=hyp['num_eval_episodes'],
+  metrics=actor.eval_metrics(hyp['num_eval_episodes']),
   summary_dir=os.path.join(tempdir, 'eval'),
 )
 
 saved_model_dir = os.path.join(tempdir, learner.POLICY_SAVED_MODEL_DIR)
+print('learner.POLICY_SAVED_MODEL_DIR = ', saved_model_dir)
 
 
 # ----------- use reverb checkpoints -------------------
+# Triggers to save the agent's policy checkpoints.
+learning_triggers = [
+    triggers.PolicySavedModelTrigger(
+        saved_model_dir,
+        tf_agent,
+        train_step,
+        interval=hyp['policy_save_interval']),
+    triggers.StepPerSecondLogTrigger(train_step, interval=1000),
+]
 
-if(True):
-    # Triggers to save the agent's policy checkpoints.
-    learning_triggers = [
-        triggers.PolicySavedModelTrigger(
-            saved_model_dir,
-            tf_agent,
-            train_step,
-            interval=policy_save_interval),
-        triggers.StepPerSecondLogTrigger(train_step, interval=1000),
-    ]
-
-    agent_learner = learner.Learner(
-      tempdir,
-      train_step,
-      tf_agent,
-      experience_dataset_fn,
-      triggers=learning_triggers,
-      strategy=strategy)
+agent_learner = learner.Learner(
+  tempdir,
+  train_step,
+  tf_agent,
+  experience_dataset_fn,
+  triggers=learning_triggers,
+  strategy=strategy)
 
 
 def get_eval_metrics():
@@ -392,6 +257,73 @@ to see how we are doing.
 =====================================================================================
 '''
 # Reset the train step
+# Checkpoint Loading Start
+
+
+# Checkpoint Loading
+
+
+
+checkpoint_dir = os.path.abspath('../temp/policies/checkpoints')
+print(f"Absolute checkpoint directory: {checkpoint_dir}")
+print("Files in checkpoint directory:")
+print(os.listdir(checkpoint_dir))
+
+# Assuming 'policy_checkpoint_0000050000' is the checkpoint you want to load
+checkpoint_to_load = os.path.join(checkpoint_dir, 'policy_checkpoint_0000019000/', 'variables', 'variables')
+print(f"Checkpoint to load: {checkpoint_to_load}")
+
+checkpoint = tf.train.Checkpoint(agent=tf_agent)
+status = checkpoint.restore(checkpoint_to_load)
+
+# Check if the checkpoint was restored successfully
+if status.expect_partial():
+    print("Checkpoint restored successfully.")
+else:
+    print("Checkpoint not found.")
+'''
+'''
+
+'''def load_latest_working_checkpoint(checkpoint_dir, tf_agent):
+    checkpoint_files = [os.path.join(checkpoint_dir, name) for name in os.listdir(checkpoint_dir)]
+    latest_checkpoint = max(checkpoint_files, key=os.path.getctime)
+    print(f"Loading checkpoint {latest_checkpoint}")
+    checkpoint = tf.train.Checkpoint(agent=tf_agent)
+    status = checkpoint.restore(latest_checkpoint)
+    status.expect_partial()  # Use this if you are sure some variables can be skipped
+    return status
+
+def load_latest_checkpoint(checkpoint_dir, tf_agent):
+    print(f"Absolute checkpoint directory: {checkpoint_dir}")
+    checkpoint_dirs = os.listdir(checkpoint_dir)
+    print("Files in checkpoint directory:")
+    print(checkpoint_dirs)
+
+    if not checkpoint_dirs:
+        print("No checkpoints to load.")
+        return None
+
+    # Sort directories to find the one with the largest step number
+    latest_checkpoint_dir = sorted(checkpoint_dirs, key=lambda x: int(x.split('_')[-1]), reverse=True)[0]
+    latest_checkpoint_path = os.path.join(checkpoint_dir, latest_checkpoint_dir, 'variables', 'variables')
+
+    print(f"Checkpoint to load: {latest_checkpoint_path}")
+
+    # Load the latest checkpoint
+    checkpoint = tf.train.Checkpoint(agent=tf_agent)
+    status = checkpoint.restore(latest_checkpoint_path)
+    status.assert_existing_objects_matched()
+
+    return latest_checkpoint_path
+
+# Usage
+checkpoint_dir = '/home/walt/src/temp/policies/checkpoints'  # or construct this path dynamically as needed
+#latest_checkpoint_path = load_latest_checkpoint(checkpoint_dir, tf_agent)
+checkpoint_status = load_latest_working_checkpoint(checkpoint_dir, tf_agent)
+print('checkpoint status = {}'.format(checkpoint_status))
+'''
+# Checkpoint Loading End
+
 t_start = datetime.datetime.now()
 #display time in H:M:S
 print("Starting at {}".format(t_start))
@@ -400,10 +332,10 @@ tf_agent.train_step_counter.assign(0)
 # Evaluate the agent's policy once before training.
 avg_return = get_eval_metrics()["AverageReturn"]
 returns = [avg_return]
-print("training starting with: ")
+print("Started training with the following returns: ")
 print(returns)
 
-for _ in range(num_iterations):
+for _ in range(hyp['num_iterations']):
   # Training.
   collect_actor.run()
   loss_info = agent_learner.run(iterations=1)
@@ -411,16 +343,18 @@ for _ in range(num_iterations):
   # Evaluating.
   step = agent_learner.train_step_numpy
 
-  if eval_interval and step % eval_interval == 0:
+  if hyp['eval_interval'] and step % hyp['eval_interval'] == 0:
     metrics = get_eval_metrics()
     log_eval_metrics(step, metrics)
     returns.append(metrics["AverageReturn"])
 
-  if log_interval and step % log_interval == 0:
+  if hyp['log_interval'] and step % hyp['log_interval'] == 0:
     print('step = {0}: loss = {1}'.format(step, loss_info.loss.numpy()))
 
 rb_observer.close()
 reverb_server.stop()
+
+# ------------------ store the hyperparameters used for this training session ------
 
 t_end = datetime.datetime.now()
 #display time in H:M:S
@@ -430,13 +364,15 @@ print("Finished Training at {}".format(t_end))
 print("Total time taken {}".format(t_end - t_start))
 print("==============================================")
 
+hf.log_training_and_hyperparameters(hyp,t_start,t_end)
+
 '''
 Plots¶
 We can plot average return vs global steps to see the performance of our agent. 
 In Minitaur, the reward function is based on how far the minitaur walks in 1000 
 steps and penalizes the energy expenditure.
 '''
-steps = range(0, num_iterations + 1, eval_interval)
+steps = range(0, hyp['num_iterations'] + 1, hyp['eval_interval'])
 plt.plot(steps, returns)
 plt.ylabel('Average Return')
 plt.xlabel('Step')
@@ -459,22 +395,35 @@ def embed_mp4(filename):
 
   return IPython.display.HTML(tag)
 
+# Before ending the script, explicitly disconnect the PyBullet environment
+if 'env' in locals():
+    env.close()
+if 'eval_env' in locals():
+    eval_env.close()
+
 print("creating video to demonstrate model performance...")
 # generate random integer between 1 and 100
 x = str(round(np.random.rand(), 2))
-y = str(num_iterations/1000)
+y = str(hyp['num_iterations']/1000)
 num_episodes = 3
-video_filename = './vids/sac_minitaur_'+x+'-'+y+'k'+'.mp4'
+video_filename = './vids/sac_minitaur_' + x + '-' + y + 'k' + '.mp4'
 
 print('Writing video {}'.format(video_filename))
 with imageio.get_writer(video_filename, fps=60) as video:
-  for _ in range(num_episodes):
-    time_step = eval_env.reset()
-    video.append_data(eval_env.render())
-    while not time_step.is_last():
-      action_step = eval_actor.policy.action(time_step)
-      time_step   = eval_env.step(action_step.action)
-      video.append_data(eval_env.render())
+    for _ in range(num_episodes):
+        time_step = eval_env.reset()
+        video.append_data(eval_env.render())
+        while not time_step.is_last():
+            action_step = eval_actor.policy.action(time_step)
+            time_step = eval_env.step(action_step.action)
+            video.append_data(eval_env.render())
 
 embed_mp4(video_filename)
 
+# Explicitly close the video writer and any other open resources
+video.close()
+print("Video has been created and saved.")
+
+# End the script gracefully
+print("Ending the script gracefully.")
+exit(0)
