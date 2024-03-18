@@ -199,7 +199,6 @@ if len(sys.argv) > 1:
     checkpoint = tf.train.Checkpoint(agent=tf_agent)
     status = checkpoint.restore(checkpoint_to_load)
 
-
 # Triggers to save the agent's policy checkpoints.
 learning_triggers = [
     triggers.PolicySavedModelTrigger(

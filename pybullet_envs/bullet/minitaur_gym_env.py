@@ -375,7 +375,6 @@ class MinitaurBulletEnv(gym.Env):
               + self._shake_weight * shake_reward
               + self._distance_weight/2 * stability_reward)
 
-
     if self._env_step_counter % 1000 == 0:
       print(f"GYM: self._env_step_counter: {self._env_step_counter}")
       #print('env_counter=\t{}'.format(self._env_step_counter))
