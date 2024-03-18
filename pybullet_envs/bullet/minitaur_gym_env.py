@@ -356,10 +356,16 @@ class MinitaurBulletEnv(gym.Env):
   def _write_rewards_to_file(self, forward_reward, energy_reward,
                             drift_reward, shake_reward,
                             stability_reward, reward):
-    with open('rewards.txt', 'a') as f:
-      f.write(f'forward_reward={forward_reward:.6f}\nenergy_reward={energy_reward:.6f}\n'
-              f'drift_reward={drift_reward:.6f}\nshake_reward={shake_reward:.6f}\n'
-              f'stability_reward={stability_reward:.6f}\nreward={reward:.6f}\n\n')
+    filename = 'rewards.csv'
+    file_exists = os.path.isfile(filename)
+    with open(filename, 'a') as f:
+      if not file_exists:
+        # write header
+        f.write(f'forward,energy,drift,shake,stability,total\n')
+
+      f.write(f'{forward_reward:.6f},{energy_reward:.6f},'
+              f'{drift_reward:.6f},{shake_reward:.6f},'
+              f'{stability_reward:.6f},{reward:.6f},\n')
       f.flush()
 
   # Call the function with your values
