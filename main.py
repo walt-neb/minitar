@@ -34,6 +34,8 @@ from tf_agents.train.utils import spec_utils, strategy_utils, train_utils
 
 os.environ['TF_USE_LEGACY_KERAS'] = '1'
 tempdir = '../temp/'  # Modify as needed
+checkpoint_dir = '../temp/policies/checkpoints'  # or construct this path dynamically as needed
+#restore_checkpoint = 'policy_checkpoint_0000119000/'#'/policy_checkpoint_0000095000/' #'policy_checkpoint_0000019000/'
 
 # Hyperparameter Configuration Start
 # Call this function to update the hyperparameters
@@ -209,6 +211,13 @@ eval_actor = actor.Actor(
 saved_model_dir = os.path.join(tempdir, learner.POLICY_SAVED_MODEL_DIR)
 print('learner.POLICY_SAVED_MODEL_DIR = ', saved_model_dir)
 
+if sys.argv[1] is not None:
+    my_checkpoint = sys.argv[1]
+    checkpoint_to_load = os.path.join(checkpoint_dir, my_checkpoint, 'variables', 'variables')
+    #checkpoint_to_load = os.path.join(checkpoint_dir, 'policy_checkpoint_0000195000', 'variables', 'variables')
+    print(f"Loading policy checkpoint: {checkpoint_to_load}")
+    checkpoint = tf.train.Checkpoint(agent=tf_agent)
+    status = checkpoint.restore(checkpoint_to_load)
 
 # ----------- use reverb checkpoints -------------------
 # Triggers to save the agent's policy checkpoints.
@@ -257,72 +266,6 @@ to see how we are doing.
 =====================================================================================
 '''
 # Reset the train step
-# Checkpoint Loading Start
-
-
-# Checkpoint Loading
-
-
-
-checkpoint_dir = os.path.abspath('../temp/policies/checkpoints')
-print(f"Absolute checkpoint directory: {checkpoint_dir}")
-print("Files in checkpoint directory:")
-print(os.listdir(checkpoint_dir))
-
-# Assuming 'policy_checkpoint_0000050000' is the checkpoint you want to load
-checkpoint_to_load = os.path.join(checkpoint_dir, 'policy_checkpoint_0000019000/', 'variables', 'variables')
-print(f"Checkpoint to load: {checkpoint_to_load}")
-
-checkpoint = tf.train.Checkpoint(agent=tf_agent)
-status = checkpoint.restore(checkpoint_to_load)
-
-# Check if the checkpoint was restored successfully
-if status.expect_partial():
-    print("Checkpoint restored successfully.")
-else:
-    print("Checkpoint not found.")
-'''
-'''
-
-'''def load_latest_working_checkpoint(checkpoint_dir, tf_agent):
-    checkpoint_files = [os.path.join(checkpoint_dir, name) for name in os.listdir(checkpoint_dir)]
-    latest_checkpoint = max(checkpoint_files, key=os.path.getctime)
-    print(f"Loading checkpoint {latest_checkpoint}")
-    checkpoint = tf.train.Checkpoint(agent=tf_agent)
-    status = checkpoint.restore(latest_checkpoint)
-    status.expect_partial()  # Use this if you are sure some variables can be skipped
-    return status
-
-def load_latest_checkpoint(checkpoint_dir, tf_agent):
-    print(f"Absolute checkpoint directory: {checkpoint_dir}")
-    checkpoint_dirs = os.listdir(checkpoint_dir)
-    print("Files in checkpoint directory:")
-    print(checkpoint_dirs)
-
-    if not checkpoint_dirs:
-        print("No checkpoints to load.")
-        return None
-
-    # Sort directories to find the one with the largest step number
-    latest_checkpoint_dir = sorted(checkpoint_dirs, key=lambda x: int(x.split('_')[-1]), reverse=True)[0]
-    latest_checkpoint_path = os.path.join(checkpoint_dir, latest_checkpoint_dir, 'variables', 'variables')
-
-    print(f"Checkpoint to load: {latest_checkpoint_path}")
-
-    # Load the latest checkpoint
-    checkpoint = tf.train.Checkpoint(agent=tf_agent)
-    status = checkpoint.restore(latest_checkpoint_path)
-    status.assert_existing_objects_matched()
-
-    return latest_checkpoint_path
-
-# Usage
-checkpoint_dir = '/home/walt/src/temp/policies/checkpoints'  # or construct this path dynamically as needed
-#latest_checkpoint_path = load_latest_checkpoint(checkpoint_dir, tf_agent)
-checkpoint_status = load_latest_working_checkpoint(checkpoint_dir, tf_agent)
-print('checkpoint status = {}'.format(checkpoint_status))
-'''
-# Checkpoint Loading End
 
 t_start = datetime.datetime.now()
 #display time in H:M:S
@@ -336,7 +279,7 @@ print("Started training with the following returns: ")
 print(returns)
 
 for _ in range(hyp['num_iterations']):
-  # Training.
+  # ============== Training ========================================================================
   collect_actor.run()
   loss_info = agent_learner.run(iterations=1)
 
@@ -409,7 +352,7 @@ num_episodes = 3
 video_filename = './vids/sac_minitaur_' + x + '-' + y + 'k' + '.mp4'
 
 print('Writing video {}'.format(video_filename))
-with imageio.get_writer(video_filename, fps=60) as video:
+with imageio.get_writer(video_filename, fps=50) as video:
     for _ in range(num_episodes):
         time_step = eval_env.reset()
         video.append_data(eval_env.render())

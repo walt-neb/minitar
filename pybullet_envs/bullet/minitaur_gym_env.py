@@ -50,7 +50,7 @@ class MinitaurBulletEnv(gym.Env):
       urdf_root=pybullet_data.getDataPath(),
       action_repeat=1,
       distance_weight=1.0,
-      energy_weight=0.005,
+      energy_weight=0.05, #0.005
       shake_weight=0.0,
       drift_weight=0.0,
       distance_limit=float("inf"),
@@ -367,15 +367,26 @@ class MinitaurBulletEnv(gym.Env):
     rot_mat = self._pybullet_client.getMatrixFromQuaternion(orientation)
     r_local_up = rot_mat[6:]
     pos = self.minitaur.GetBasePosition()
+    stability_reward = .1* np.dot(np.asarray([0, 0, 1]), np.asarray(r_local_up)) + pos[2] * 0.01
 
-    stability_reward = np.dot(np.asarray([0, 0, 1]), np.asarray(r_local_up)) #+ pos[2] * 0.25
+    reward = (  self._distance_weight * forward_reward
+              - self._energy_weight * energy_reward
+              + self._drift_weight * drift_reward
+              + self._shake_weight * shake_reward
+              + self._distance_weight/2 * stability_reward)
 
-    reward = (self._distance_weight * forward_reward - self._energy_weight * energy_reward +
-              self._drift_weight * drift_reward + self._shake_weight * shake_reward +
-              self._distance_weight * stability_reward)
 
+    if self._env_step_counter % 1000 == 0:
+      print(f"GYM: self._env_step_counter: {self._env_step_counter}")
+      #print('env_counter=\t{}'.format(self._env_step_counter))
+      print(f'forward_reward=\t{forward_reward:.2f}\n'
+            f'energy_reward=\t{energy_reward:.2f}\n'
+            f'drift_reward=\t{drift_reward:.2f}\n'
+            f'shake_reward=\t{shake_reward:.2f}\n'
+            f'stability_reward=\t{stability_reward:.2f}\n'
+            f'reward=\t{reward:.2f}\n')
 
-    self._objectives.append([forward_reward, energy_reward, drift_reward, shake_reward])
+    self._objectives.append([forward_reward, energy_reward, drift_reward, shake_reward, stability_reward])
     return reward
 
   def get_objectives(self):
