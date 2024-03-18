@@ -40,11 +40,11 @@ env_name = "MinitaurBulletEnv-v0" # @param {type:"string"}
 # ====================================================================================
 # Use "num_iterations = 1e6" for better results (2 hrs)
 # 1e5 is just so this doesn't take too long (1 hr)
-num_iterations = 20000 # @param {type:"integer"}
+num_iterations = 1000000 # @param {type:"integer"}
 initial_collect_steps = 10000 # @param {type:"integer"}
 collect_steps_per_iteration = 1 # @param {type:"integer"}
 replay_buffer_capacity = 50000 # @param {type:"integer"}
-batch_size = 64# 256 # @param {type:"integer"}
+batch_size = 128# 256 # @param {type:"integer"}
 critic_learning_rate = 3e-4 # @param {type:"number"}
 actor_learning_rate = 3e-4 # @param {type:"number"}
 alpha_learning_rate = 3e-4 # @param {type:"number"}

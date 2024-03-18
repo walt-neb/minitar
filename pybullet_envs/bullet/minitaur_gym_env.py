@@ -353,6 +353,16 @@ class MinitaurBulletEnv(gym.Env):
     distance = math.sqrt(position[0]**2 + position[1]**2)
     return self.is_fallen() or distance > self._distance_limit
 
+  def _write_rewards_to_file(self, forward_reward, energy_reward,
+                            drift_reward, shake_reward,
+                            stability_reward, reward):
+    with open('rewards.txt', 'a') as f:
+      f.write(f'forward_reward={forward_reward:.6f}\nenergy_reward={energy_reward:.6f}\n'
+              f'drift_reward={drift_reward:.6f}\nshake_reward={shake_reward:.6f}\n'
+              f'stability_reward={stability_reward:.6f}\nreward={reward:.6f}\n\n')
+
+  # Call the function with your values
+
   def _reward(self):
     current_base_position = self.minitaur.GetBasePosition()
     forward_reward = current_base_position[0] - self._last_base_position[0]
@@ -367,7 +377,7 @@ class MinitaurBulletEnv(gym.Env):
     rot_mat = self._pybullet_client.getMatrixFromQuaternion(orientation)
     r_local_up = rot_mat[6:]
     pos = self.minitaur.GetBasePosition()
-    stability_reward = .1* np.dot(np.asarray([0, 0, 1]), np.asarray(r_local_up)) + pos[2] * 0.01
+    stability_reward = .1* np.dot(np.asarray([0, 0, 1]), np.asarray(r_local_up)) #+ pos[2] * 0.01
 
     reward = (  self._distance_weight * forward_reward
               - self._energy_weight * energy_reward
@@ -376,14 +386,12 @@ class MinitaurBulletEnv(gym.Env):
               + self._distance_weight/2 * stability_reward)
 
     if self._env_step_counter % 1000 == 0:
-      print(f"GYM: self._env_step_counter: {self._env_step_counter}")
-      #print('env_counter=\t{}'.format(self._env_step_counter))
-      print(f'forward_reward=\t{forward_reward:.2f}\n'
-            f'energy_reward=\t{energy_reward:.2f}\n'
-            f'drift_reward=\t{drift_reward:.2f}\n'
-            f'shake_reward=\t{shake_reward:.2f}\n'
-            f'stability_reward=\t{stability_reward:.2f}\n'
-            f'reward=\t{reward:.2f}\n')
+      self._write_rewards_to_file(forward_reward,
+                                 energy_reward,
+                                 drift_reward,
+                                 shake_reward,
+                                 stability_reward,
+                                 reward)
 
     self._objectives.append([forward_reward, energy_reward, drift_reward, shake_reward, stability_reward])
     return reward
