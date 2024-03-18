@@ -50,7 +50,7 @@ class MinitaurBulletEnv(gym.Env):
       urdf_root=pybullet_data.getDataPath(),
       action_repeat=1,
       distance_weight=1.0,
-      energy_weight=0.05, #0.005
+      energy_weight=0.025, #0.005
       shake_weight=0.5,
       drift_weight=0.5,
       distance_limit=float("inf"),

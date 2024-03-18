@@ -40,8 +40,8 @@ env_name = "MinitaurBulletEnv-v0" # @param {type:"string"}
 # ====================================================================================
 # Use "num_iterations = 1e6" for better results (2 hrs)
 # 1e5 is just so this doesn't take too long (1 hr)
-num_iterations = 50000 # @param {type:"integer"}
-initial_collect_steps = 10000 # @param {type:"integer"}
+num_iterations = 100000 # @param {type:"integer"}
+initial_collect_steps = 5000 # @param {type:"integer"}
 collect_steps_per_iteration = 1 # @param {type:"integer"}
 replay_buffer_capacity = 50000 # @param {type:"integer"}
 batch_size = 128# 256 # @param {type:"integer"}
@@ -56,8 +56,8 @@ actor_fc_layer_params = (256, 256)
 critic_joint_fc_layer_params = (256, 256)
 log_interval = 5000 # @param {type:"integer"}
 num_eval_episodes = 20 # @param {type:"integer"}
-eval_interval = 5000 # @param {type:"integer"}
-policy_save_interval = 3000 # @param {type:"integer"}
+eval_interval = 500 # @param {type:"integer"}
+policy_save_interval = 10000 # @param {type:"integer"}
 # ====================================================================================
 
 

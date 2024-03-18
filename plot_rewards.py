@@ -13,7 +13,7 @@ def update(i):
     for column in data.columns:
         plt.plot(data.index, data[column], label=column)
 
-    plt.xlabel('Time')
+    plt.xlabel('Steps (k)')
     plt.ylabel('Rewards')
     plt.legend()
 
