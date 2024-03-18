@@ -51,8 +51,8 @@ class MinitaurBulletEnv(gym.Env):
       action_repeat=1,
       distance_weight=1.0,
       energy_weight=0.05, #0.005
-      shake_weight=0.0,
-      drift_weight=0.0,
+      shake_weight=0.5,
+      drift_weight=0.5,
       distance_limit=float("inf"),
       observation_noise_stdev=0.0,
       self_collision_enabled=True,
@@ -360,6 +360,7 @@ class MinitaurBulletEnv(gym.Env):
       f.write(f'forward_reward={forward_reward:.6f}\nenergy_reward={energy_reward:.6f}\n'
               f'drift_reward={drift_reward:.6f}\nshake_reward={shake_reward:.6f}\n'
               f'stability_reward={stability_reward:.6f}\nreward={reward:.6f}\n\n')
+      f.flush()
 
   # Call the function with your values
 
@@ -377,23 +378,28 @@ class MinitaurBulletEnv(gym.Env):
     rot_mat = self._pybullet_client.getMatrixFromQuaternion(orientation)
     r_local_up = rot_mat[6:]
     pos = self.minitaur.GetBasePosition()
-    stability_reward = .1* np.dot(np.asarray([0, 0, 1]), np.asarray(r_local_up)) #+ pos[2] * 0.01
+    stability_reward = np.dot(np.asarray([0, 0, 1]), np.asarray(r_local_up)) #+ pos[2] * 0.01
+    stability_weight = .001
 
     reward = (  self._distance_weight * forward_reward
               - self._energy_weight * energy_reward
               + self._drift_weight * drift_reward
               + self._shake_weight * shake_reward
-              + self._distance_weight/2 * stability_reward)
+              + stability_weight * stability_reward)
 
     if self._env_step_counter % 1000 == 0:
-      self._write_rewards_to_file(forward_reward,
-                                 energy_reward,
-                                 drift_reward,
-                                 shake_reward,
-                                 stability_reward,
+      self._write_rewards_to_file(self._distance_weight * forward_reward,
+                                 -1 * self._energy_weight * energy_reward,
+                                 self._drift_weight * drift_reward,
+                                 self._shake_weight * shake_reward,
+                                 stability_weight * stability_reward,
                                  reward)
 
-    self._objectives.append([forward_reward, energy_reward, drift_reward, shake_reward, stability_reward])
+    self._objectives.append([forward_reward,
+                             energy_reward,
+                             drift_reward,
+                             shake_reward,
+                             stability_reward])
     return reward
 
   def get_objectives(self):
